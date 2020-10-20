@@ -38,7 +38,7 @@ public class Opti {
   public RelRoot optimize(RelRoot root, DataContext dataContext) {
     final RelOptPlanner planner = root.rel.getCluster().getPlanner();
     ((VolcanoPlanner) planner).setNoneConventionHasInfiniteCost(false); // FIXME: not sure why this is needed
-    planner.addRule(TestRule.Config.DEFAULT.toRule());
+    //planner.addRule(TestRule.Config.DEFAULT.toRule());
 
     planner.setExecutor(new RexExecutorImpl(dataContext));
 

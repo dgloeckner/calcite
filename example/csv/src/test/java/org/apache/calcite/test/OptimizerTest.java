@@ -25,11 +25,15 @@ import org.apache.calcite.jdbc.CalcitePrepare;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.prepare.CalcitePrepareImpl;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.rel2sql.RelToSqlConverter;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.dialect.ClickHouseSqlDialect;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -46,11 +50,9 @@ public class OptimizerTest {
 
   @Test
   void testOptimize() throws SqlParseException {
-    SqlParser parser = SqlParser.create("SELECT * FROM emps");
+    SqlParser parser = SqlParser.create("SELECT * FROM emps e join emps2 e2 where e1.name = e2.name");
     SqlNode node = parser.parseQuery();
     System.out.println(node);
-    //SqlToRelConverter conv = new SqlToRelConverter();
-    CalcitePrepare.Query q = CalcitePrepare.Query.of("SELECT * FROM emps");
     CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
     CalcitePrepareImpl prep = new CalcitePrepareImpl();
 
@@ -59,7 +61,15 @@ public class OptimizerTest {
       public RelDataType getRowType(RelDataTypeFactory typeFactory) {
         JavaTypeFactory jtf = (JavaTypeFactory) typeFactory;
         return jtf.createStructType(Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR)),
-            Arrays.asList("name"));
+            Arrays.asList("NAME"));
+      }
+    });
+    rootSchema.add("EMPS2", new AbstractTable() {
+      @Override
+      public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+        JavaTypeFactory jtf = (JavaTypeFactory) typeFactory;
+        return jtf.createStructType(Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR), jtf.createSqlType(SqlTypeName.CHAR)),
+            Arrays.asList("NAME2", "VAL"));
       }
     });
     rootSchema.add("REPLACEMENT", new AbstractTable() {
@@ -67,7 +77,7 @@ public class OptimizerTest {
       public RelDataType getRowType(RelDataTypeFactory typeFactory) {
         JavaTypeFactory jtf = (JavaTypeFactory) typeFactory;
         return jtf.createStructType(Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR)),
-            Arrays.asList("name2"));
+            Arrays.asList("NAME3"));
       }
     });
     CalciteConnectionConfig config = new CalciteConnectionConfigImpl(new Properties());
@@ -117,11 +127,21 @@ public class OptimizerTest {
         throw new UnsupportedOperationException();
       }
     };
-    CalcitePrepare.ConvertResult r = prep.convert(context, "SELECT * FROM emps");
+    CalcitePrepare.ConvertResult r = prep.convert(context, "SELECT * FROM emps e1 join emps2 e2 on e1.name = e2.name2 where e2.val = 'bla'");
 
     System.out.println("got " + r.root);
     Opti opti = new Opti();
     RelRoot optimized = opti.optimize(r.root, null);
     System.out.println("Final " + optimized);
+    System.out.println("Clickhouse unoptimized: " +
+        SqlParser.create("SELECT * FROM emps e1 join emps2 e2 on e1.name = e2.name2 where e2.val = 'bla'").parseQuery().toSqlString(ClickHouseSqlDialect.DEFAULT));
+    System.out.println("Clickhouse optimized: " + toSql(optimized.rel, ClickHouseSqlDialect.DEFAULT));
+  }
+
+  /** Converts a relational expression to SQL in a given dialect. */
+  private static String toSql(RelNode root, SqlDialect dialect) {
+    final RelToSqlConverter converter = new RelToSqlConverter(dialect);
+    final SqlNode sqlNode = converter.visitRoot(root).asStatement();
+    return sqlNode.toSqlString(dialect).getSql();
   }
 }
