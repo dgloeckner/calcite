@@ -62,6 +62,14 @@ public class OptimizerTest {
             Arrays.asList("name"));
       }
     });
+    rootSchema.add("REPLACEMENT", new AbstractTable() {
+      @Override
+      public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+        JavaTypeFactory jtf = (JavaTypeFactory) typeFactory;
+        return jtf.createStructType(Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR)),
+            Arrays.asList("name2"));
+      }
+    });
     CalciteConnectionConfig config = new CalciteConnectionConfigImpl(new Properties());
     CalcitePrepare.Context context = new CalcitePrepare.Context() {
       @Override
@@ -114,6 +122,6 @@ public class OptimizerTest {
     System.out.println("got " + r.root);
     Opti opti = new Opti();
     RelRoot optimized = opti.optimize(r.root, null);
-    System.out.println("Final " + opti);
+    System.out.println("Final " + optimized);
   }
 }

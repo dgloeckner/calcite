@@ -48,7 +48,7 @@ public class RelOptRules {
    * use it. */
   public static final ImmutableList<RelOptRule> CALC_RULES =
       ImmutableList.of(
-          Bindables.FROM_NONE_RULE,
+          //Bindables.FROM_NONE_RULE, // FIXME: why does this cause StackOverflowError???
           EnumerableRules.ENUMERABLE_CALC_RULE,
           EnumerableRules.ENUMERABLE_FILTER_TO_CALC_RULE,
           EnumerableRules.ENUMERABLE_PROJECT_TO_CALC_RULE,

@@ -19,12 +19,11 @@ package org.apache.calcite.test;
 
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
-import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.plan.RelOptLattice;
 import org.apache.calcite.plan.RelOptMaterialization;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.prepare.Prepare;
+import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rex.RexExecutorImpl;
@@ -38,8 +37,8 @@ public class Opti {
 
   public RelRoot optimize(RelRoot root, DataContext dataContext) {
     final RelOptPlanner planner = root.rel.getCluster().getPlanner();
-
-    //planner.addRule(TestRule.Config.DEFAULT.toRule());
+    ((VolcanoPlanner) planner).setNoneConventionHasInfiniteCost(false); // FIXME: not sure why this is needed
+    planner.addRule(TestRule.Config.DEFAULT.toRule());
 
     planner.setExecutor(new RexExecutorImpl(dataContext));
 
