@@ -41,13 +41,14 @@ import java.util.List;
 
 public class Main {
 
-  private static final boolean USE_HEP_PLANNER = true;
+  private static final boolean USE_HEP_PLANNER = false;
 
   public static void main(String[] args) throws Exception {
     CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
     ClickhouseSchema schema = new ClickhouseSchema();
     rootSchema.add("clickhouse", schema);
     List<RelOptRule> rules = new ArrayList<>();
+    rules.addAll(RelOptRules.BASE_RULES);
     rules.addAll(ClickhouseRules.rules(schema.getConvention()));
     RuleSet ruleSet = RuleSets.ofList(rules);
 

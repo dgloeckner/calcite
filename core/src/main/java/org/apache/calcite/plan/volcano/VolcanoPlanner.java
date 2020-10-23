@@ -18,36 +18,13 @@ package org.apache.calcite.plan.volcano;
 
 import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.config.CalciteSystemProperty;
-import org.apache.calcite.plan.AbstractRelOptPlanner;
-import org.apache.calcite.plan.Context;
-import org.apache.calcite.plan.Convention;
-import org.apache.calcite.plan.ConventionTraitDef;
-import org.apache.calcite.plan.RelDigest;
-import org.apache.calcite.plan.RelOptCost;
-import org.apache.calcite.plan.RelOptCostFactory;
-import org.apache.calcite.plan.RelOptLattice;
-import org.apache.calcite.plan.RelOptMaterialization;
-import org.apache.calcite.plan.RelOptMaterializations;
-import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptRule;
-import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelOptRuleOperand;
-import org.apache.calcite.plan.RelOptSchema;
-import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.plan.RelTrait;
-import org.apache.calcite.plan.RelTraitDef;
-import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.*;
 import org.apache.calcite.rel.PhysicalNode;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.Converter;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.externalize.RelWriterImpl;
-import org.apache.calcite.rel.metadata.CyclicMetadataException;
-import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
-import org.apache.calcite.rel.metadata.RelMdUtil;
-import org.apache.calcite.rel.metadata.RelMetadataProvider;
-import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rel.metadata.*;
 import org.apache.calcite.rel.rules.SubstitutionRule;
 import org.apache.calcite.rel.rules.TransformationRule;
 import org.apache.calcite.runtime.Hook;
@@ -64,17 +41,7 @@ import org.apiguardian.api.API;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -701,6 +668,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     }
     if (noneConventionHasInfiniteCost
         && rel.getTraitSet().getTrait(ConventionTraitDef.INSTANCE) == Convention.NONE) {
+      System.out.printf("Cost for %s is infinite\n", rel.explain());
       return costFactory.makeInfiniteCost();
     }
     RelOptCost cost = mq.getNonCumulativeCost(rel);
@@ -711,6 +679,7 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     for (RelNode input : rel.getInputs()) {
       cost = cost.plus(getCost(input, mq));
     }
+    System.out.printf("Cost for %s is %s\n", rel.explain(), cost);
     return cost;
   }
 

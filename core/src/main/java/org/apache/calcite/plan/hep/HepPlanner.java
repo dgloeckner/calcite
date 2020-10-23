@@ -18,19 +18,7 @@ package org.apache.calcite.plan.hep;
 
 import org.apache.calcite.linq4j.function.Function2;
 import org.apache.calcite.linq4j.function.Functions;
-import org.apache.calcite.plan.AbstractRelOptPlanner;
-import org.apache.calcite.plan.CommonRelSubExprRule;
-import org.apache.calcite.plan.Context;
-import org.apache.calcite.plan.RelDigest;
-import org.apache.calcite.plan.RelOptCost;
-import org.apache.calcite.plan.RelOptCostFactory;
-import org.apache.calcite.plan.RelOptCostImpl;
-import org.apache.calcite.plan.RelOptMaterialization;
-import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptRule;
-import org.apache.calcite.plan.RelOptRuleOperand;
-import org.apache.calcite.plan.RelTrait;
-import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.*;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.Converter;
 import org.apache.calcite.rel.convert.ConverterRule;
@@ -42,29 +30,11 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.util.Pair;
 import org.apache.calcite.util.Util;
-import org.apache.calcite.util.graph.BreadthFirstIterator;
-import org.apache.calcite.util.graph.CycleDetector;
-import org.apache.calcite.util.graph.DefaultDirectedGraph;
-import org.apache.calcite.util.graph.DefaultEdge;
-import org.apache.calcite.util.graph.DepthFirstIterator;
-import org.apache.calcite.util.graph.DirectedGraph;
-import org.apache.calcite.util.graph.Graphs;
-import org.apache.calcite.util.graph.TopologicalOrderIterator;
+import org.apache.calcite.util.graph.*;
 
 import com.google.common.collect.ImmutableList;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 
 /**
  * HepPlanner is a heuristic implementation of the {@link RelOptPlanner}
@@ -525,7 +495,7 @@ public class HepPlanner extends AbstractRelOptPlanner {
     if (!match) {
       return null;
     }
-
+    System.out.println("Rule matches... " + rule);
     HepRuleCall call =
         new HepRuleCall(
             this,
