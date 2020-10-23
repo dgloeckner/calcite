@@ -20,25 +20,19 @@ package org.apache.calcite.adapter.clickhouse.rel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.CorrelationId;
-import org.apache.calcite.rel.core.Join;
-import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexNode;
 
-import com.google.common.collect.ImmutableList;
+public class ClickhouseFilter extends Filter implements ClickhouseRel {
 
-import java.util.Set;
-
-public class ClickhouseJoin extends Join implements ClickhouseRel {
-
-  public ClickhouseJoin(RelOptCluster cluster,
-      RelNode left, RelNode right, RexNode condition, Set<CorrelationId> variablesSet,
-      JoinRelType joinType) {
-    super(cluster, cluster.traitSet(), ImmutableList.of(), left, right, condition, variablesSet, joinType);// Might need to adjust trait set with enumerable convention
+  protected ClickhouseFilter(RelOptCluster cluster, RelTraitSet traits, RelNode child,
+      RexNode condition) {
+    super(cluster, traits, child, condition);
   }
 
   @Override
-  public ClickhouseJoin copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left, RelNode right, JoinRelType joinType, boolean semiJoinDone) {
-    return new ClickhouseJoin(getCluster(), left, right, conditionExpr, variablesSet, joinType);
+  public ClickhouseFilter copy(RelTraitSet traitSet, RelNode input, RexNode condition) {
+    return new ClickhouseFilter(getCluster(), traitSet, input, condition);
   }
+
 }

@@ -65,7 +65,7 @@ public class RelOptRules {
           CoreRules.FILTER_CALC_MERGE,
           CoreRules.PROJECT_CALC_MERGE);
 
-  static final List<RelOptRule> BASE_RULES = ImmutableList.of(
+  public static final List<RelOptRule> BASE_RULES = ImmutableList.of(
       CoreRules.AGGREGATE_STAR_TABLE,
       CoreRules.AGGREGATE_PROJECT_STAR_TABLE,
       CalciteSystemProperty.COMMUTE.value()
@@ -82,7 +82,7 @@ public class RelOptRules {
       CoreRules.FILTER_AGGREGATE_TRANSPOSE,
       CoreRules.PROJECT_WINDOW_TRANSPOSE,
       CoreRules.MATCH,
-      CoreRules.JOIN_COMMUTE,
+      //CoreRules.JOIN_COMMUTE,
       JoinPushThroughJoinRule.RIGHT,
       JoinPushThroughJoinRule.LEFT,
       CoreRules.SORT_PROJECT_TRANSPOSE,

@@ -20,25 +20,23 @@ package org.apache.calcite.adapter.clickhouse.rel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.CorrelationId;
-import org.apache.calcite.rel.core.Join;
-import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
 
 import com.google.common.collect.ImmutableList;
 
-import java.util.Set;
+import java.util.List;
 
-public class ClickhouseJoin extends Join implements ClickhouseRel {
+public class ClickhouseProject extends Project implements ClickhouseRel{
 
-  public ClickhouseJoin(RelOptCluster cluster,
-      RelNode left, RelNode right, RexNode condition, Set<CorrelationId> variablesSet,
-      JoinRelType joinType) {
-    super(cluster, cluster.traitSet(), ImmutableList.of(), left, right, condition, variablesSet, joinType);// Might need to adjust trait set with enumerable convention
+  protected ClickhouseProject(RelOptCluster cluster, RelTraitSet traits,
+      RelNode input, List<? extends RexNode> projects, RelDataType rowType) {
+    super(cluster, traits, ImmutableList.of(), input, projects, rowType);
   }
 
   @Override
-  public ClickhouseJoin copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left, RelNode right, JoinRelType joinType, boolean semiJoinDone) {
-    return new ClickhouseJoin(getCluster(), left, right, conditionExpr, variablesSet, joinType);
+  public ClickhouseProject copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects, RelDataType rowType) {
+    return new ClickhouseProject(getCluster(), traitSet, input, projects, rowType);
   }
 }

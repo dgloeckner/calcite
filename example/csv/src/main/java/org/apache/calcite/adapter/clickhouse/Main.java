@@ -20,21 +20,24 @@ package org.apache.calcite.adapter.clickhouse;
 import org.apache.calcite.adapter.clickhouse.rel.ClickhouseConvention;
 import org.apache.calcite.adapter.clickhouse.rel.ClickhouseRules;
 import org.apache.calcite.jdbc.CalciteSchema;
-import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.*;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
+import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.externalize.RelWriterImpl;
-import org.apache.calcite.rel.rules.CoreRules;
+import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.tools.*;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
 
@@ -44,12 +47,21 @@ public class Main {
     CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
     ClickhouseSchema schema = new ClickhouseSchema();
     rootSchema.add("clickhouse", schema);
-    RuleSet ruleSet = RuleSets.ofList(ClickhouseRules.rules(schema.getConvention()));
+    List<RelOptRule> rules = new ArrayList<>();
+    rules.addAll(ClickhouseRules.rules(schema.getConvention()));
+    RuleSet ruleSet = RuleSets.ofList(rules);
+
+    final List<RelTraitDef> traitDefs = new ArrayList<RelTraitDef>();
+    traitDefs.add(ConventionTraitDef.INSTANCE);
+    traitDefs.add(RelCollationTraitDef.INSTANCE);
 
     FrameworkConfig frameworkConfig = Frameworks.newConfigBuilder()
         .parserConfig(SqlParser.config().withCaseSensitive(false))
         .defaultSchema(rootSchema.plus())
+        .traitDefs(traitDefs)
         .ruleSets(ruleSet)
+        .typeSystem(RelDataTypeSystem.DEFAULT)
+        .costFactory(RelOptCostImpl.FACTORY)
         .build();
 
     // Warmup JIT to do some simple benchmarks later
@@ -106,13 +118,8 @@ public class Main {
 
   private static RelNode optimizeWithHepPlanner(RelNode rootRel, ClickhouseConvention convention) {
     final HepProgram hepProgram = new HepProgramBuilder()
+        .addRuleCollection(RelOptRules.BASE_RULES)
         .addRuleCollection(ClickhouseRules.rules(convention))
-        .addRuleInstance(CoreRules.CALC_SPLIT)
-        .addRuleInstance(CoreRules.FILTER_SCAN)
-        .addRuleInstance(CoreRules.FILTER_INTERPRETER_SCAN)
-        .addRuleInstance(CoreRules.PROJECT_TABLE_SCAN)
-        .addRuleInstance(CoreRules.PROJECT_INTERPRETER_TABLE_SCAN)
-        .addRuleInstance(CoreRules.AGGREGATE_REDUCE_FUNCTIONS)
         .build();
     final HepPlanner planner = new HepPlanner(hepProgram);
     planner.setRoot(rootRel);

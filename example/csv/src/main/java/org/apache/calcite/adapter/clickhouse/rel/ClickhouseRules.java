@@ -17,15 +17,15 @@
 
 package org.apache.calcite.adapter.clickhouse.rel;
 
-import org.apache.calcite.adapter.csv.CsvProjectTableScanRule;
-import org.apache.calcite.adapter.java.Array;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelRule;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
+import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
@@ -38,7 +38,9 @@ public class ClickhouseRules {
 
   public static Collection<RelOptRule> rules(ClickhouseConvention convention) {
     List<RelOptRule> rules = new ArrayList<>();
-    rules.add(ClickhouseJoinRule.create(convention));
+    rules.add(ClickhouseJoinConverterRule.create(convention));
+    rules.add(ClickhouseProjectConverterRule.create(convention));
+    rules.add(ClickhouseFilterConverterRule.create(convention));
     rules.add(ClickhouseProjectRule.create());
     return rules;
   }
@@ -53,23 +55,23 @@ public class ClickhouseRules {
   }
 
   /**
-   * Rule that converts a join to JDBC.
+   * Rule that converts a join to clickhouse join.
    */
-  public static class ClickhouseJoinRule extends ClickhouseConverterRule {
+  public static class ClickhouseJoinConverterRule extends ClickhouseConverterRule {
     /**
      * Creates a ClickhouseJoinRule.
      */
-    public static ClickhouseJoinRule create(ClickhouseConvention out) {
+    public static ClickhouseJoinConverterRule create(ClickhouseConvention out) {
       return Config.INSTANCE
           .withConversion(Join.class, Convention.NONE, out, "ClickhouseJoinRule")
-          .withRuleFactory(ClickhouseJoinRule::new)
-          .toRule(ClickhouseJoinRule.class);
+          .withRuleFactory(ClickhouseJoinConverterRule::new)
+          .toRule(ClickhouseJoinConverterRule.class);
     }
 
     /**
      * Called from the Config.
      */
-    protected ClickhouseJoinRule(Config config) {
+    protected ClickhouseJoinConverterRule(Config config) {
       super(config);
     }
 
@@ -86,6 +88,62 @@ public class ClickhouseRules {
     }
   }
 
+  /**
+   * Rule that converts a project to clickhouse project.
+   */
+  public static class ClickhouseProjectConverterRule extends ClickhouseConverterRule {
+
+    public static ClickhouseProjectConverterRule create(ClickhouseConvention out) {
+      return Config.INSTANCE
+          .withConversion(Project.class, Convention.NONE, out, "ClickhouseProjectConverterRule")
+          .withRuleFactory(ClickhouseProjectConverterRule::new)
+          .toRule(ClickhouseProjectConverterRule.class);
+    }
+
+    /**
+     * Called from the Config.
+     */
+    protected ClickhouseProjectConverterRule(Config config) {
+      super(config);
+    }
+
+    @Override
+    public RelNode convert(RelNode rel) {
+      final Project project = (Project) rel;
+      return new ClickhouseProject(project.getCluster(), project.getTraitSet(), project.getInput(),
+          project.getProjects(), project.getRowType());
+    }
+  }
+
+
+  /**
+   * Rule that converts a filter to clickhouse filter.
+   */
+  public static class ClickhouseFilterConverterRule extends ClickhouseConverterRule {
+
+    public static ClickhouseFilterConverterRule create(ClickhouseConvention out) {
+      return Config.INSTANCE
+          .withConversion(Filter.class, Convention.NONE, out, "ClickhouseFilterConverterRule")
+          .withRuleFactory(ClickhouseFilterConverterRule::new)
+          .toRule(ClickhouseFilterConverterRule.class);
+    }
+
+    /**
+     * Called from the Config.
+     */
+    protected ClickhouseFilterConverterRule(Config config) {
+      super(config);
+    }
+
+    @Override
+    public RelNode convert(RelNode rel) {
+      final Filter filter = (Filter) rel;
+      return new ClickhouseFilter(filter.getCluster(), filter.getTraitSet(), filter.getInput(),
+          filter.getCondition());
+    }
+  }
+
+  // Pushes projected fields into tabla scan
   public static class ClickhouseProjectRule extends RelRule<ClickhouseProjectRule.Config> {
 
     public ClickhouseProjectRule(Config config) {
@@ -111,7 +169,7 @@ public class ClickhouseRules {
               scan.getCluster(),
               (ClickhouseConvention) scan.getConvention(),
               scan.getTable(),
-              new int[] {1}));
+              new int[]{1}));
     }
 
     private int[] getProjectFields(List<RexNode> exps) {
@@ -131,7 +189,9 @@ public class ClickhouseRules {
       return Config.DEFAULT.toRule();
     }
 
-    /** Rule configuration. */
+    /**
+     * Rule configuration.
+     */
     public interface Config extends RelRule.Config {
       Config DEFAULT = EMPTY
           .withOperandSupplier(b0 ->
@@ -139,7 +199,8 @@ public class ClickhouseRules {
                   b1.operand(ClickhouseTableScan.class).noInputs()))
           .as(Config.class);
 
-      @Override default ClickhouseProjectRule toRule() {
+      @Override
+      default ClickhouseProjectRule toRule() {
         return new ClickhouseProjectRule(this);
       }
     }
