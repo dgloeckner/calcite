@@ -29,16 +29,22 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.Set;
 
+// TODO: push down fields past join
 public class ClickhouseJoin extends Join implements ClickhouseRel {
 
-  public ClickhouseJoin(RelOptCluster cluster,
+  public ClickhouseJoin(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode left, RelNode right, RexNode condition, Set<CorrelationId> variablesSet,
       JoinRelType joinType) {
-    super(cluster, cluster.traitSet(), ImmutableList.of(), left, right, condition, variablesSet, joinType);// Might need to adjust trait set with enumerable convention
+    super(cluster, traitSet, ImmutableList.of(), left, right, condition, variablesSet, joinType);
+    assert getConvention() instanceof ClickhouseConvention;
+    assert getConvention() == left.getConvention();
+    assert getConvention() == right.getConvention();
   }
 
   @Override
-  public ClickhouseJoin copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left, RelNode right, JoinRelType joinType, boolean semiJoinDone) {
-    return new ClickhouseJoin(getCluster(), left, right, conditionExpr, variablesSet, joinType);
+  public ClickhouseJoin copy(RelTraitSet traitSet, RexNode conditionExpr, RelNode left,
+      RelNode right, JoinRelType joinType, boolean semiJoinDone) {
+    return new ClickhouseJoin(getCluster(), getTraitSet(), left, right, conditionExpr,
+        variablesSet, joinType);
   }
 }

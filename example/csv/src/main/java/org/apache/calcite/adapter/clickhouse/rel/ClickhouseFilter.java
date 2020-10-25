@@ -28,6 +28,8 @@ public class ClickhouseFilter extends Filter implements ClickhouseRel {
   protected ClickhouseFilter(RelOptCluster cluster, RelTraitSet traits, RelNode child,
       RexNode condition) {
     super(cluster, traits, child, condition);
+    assert getConvention() instanceof ClickhouseConvention;
+    assert getConvention() == child.getConvention();
   }
 
   @Override

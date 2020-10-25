@@ -28,15 +28,19 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
-public class ClickhouseProject extends Project implements ClickhouseRel{
+public class ClickhouseProject extends Project implements ClickhouseRel {
 
   protected ClickhouseProject(RelOptCluster cluster, RelTraitSet traits,
       RelNode input, List<? extends RexNode> projects, RelDataType rowType) {
     super(cluster, traits, ImmutableList.of(), input, projects, rowType);
+    assert getConvention() instanceof ClickhouseConvention;
+    assert getConvention() == input.getConvention();
   }
 
   @Override
-  public ClickhouseProject copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects, RelDataType rowType) {
-    return new ClickhouseProject(getCluster(), traitSet, input, projects, rowType);
+  public ClickhouseProject copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects,
+      RelDataType rowType) {
+    return new ClickhouseProject(getCluster(), traitSet,
+        input, projects, rowType);
   }
 }

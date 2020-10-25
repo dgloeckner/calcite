@@ -18,9 +18,6 @@
 package org.apache.calcite.adapter.clickhouse.rel;
 
 import org.apache.calcite.plan.Convention;
-import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptRule;
-import org.apache.calcite.rel.rules.CoreRules;
 
 public class ClickhouseConvention extends Convention.Impl {
 
@@ -28,12 +25,4 @@ public class ClickhouseConvention extends Convention.Impl {
     super("Clickhouse", ClickhouseRel.class);
   }
 
-  @Override
-  public void register(RelOptPlanner planner) {
-    for (RelOptRule rule : ClickhouseRules.rules(this)) {
-      planner.addRule(rule);
-    }
-    planner.addRule(CoreRules.FILTER_SET_OP_TRANSPOSE);
-    planner.addRule(CoreRules.PROJECT_REMOVE);
-  }
 }

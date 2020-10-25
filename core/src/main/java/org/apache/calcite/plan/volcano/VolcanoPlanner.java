@@ -668,7 +668,6 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     }
     if (noneConventionHasInfiniteCost
         && rel.getTraitSet().getTrait(ConventionTraitDef.INSTANCE) == Convention.NONE) {
-      System.out.printf("Cost for %s is infinite\n", rel.explain());
       return costFactory.makeInfiniteCost();
     }
     RelOptCost cost = mq.getNonCumulativeCost(rel);
@@ -679,7 +678,6 @@ public class VolcanoPlanner extends AbstractRelOptPlanner {
     for (RelNode input : rel.getInputs()) {
       cost = cost.plus(getCost(input, mq));
     }
-    System.out.printf("Cost for %s is %s\n", rel.explain(), cost);
     return cost;
   }
 

@@ -31,6 +31,8 @@ dependencies {
     implementation("net.sf.opencsv:opencsv")
     implementation("org.apache.calcite.avatica:avatica-core")
     implementation("org.apache.commons:commons-lang3")
+    implementation("ch.qos.logback:logback-core:1.2.3")
+    implementation("ch.qos.logback:logback-classic:1.2.3")
 
     testImplementation("sqlline:sqlline")
     testImplementation(project(":core", "testClasses"))

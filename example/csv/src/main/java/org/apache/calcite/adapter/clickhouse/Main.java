@@ -37,7 +37,10 @@ import org.apache.calcite.tools.*;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class Main {
 
@@ -47,20 +50,15 @@ public class Main {
     CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
     ClickhouseSchema schema = new ClickhouseSchema();
     rootSchema.add("clickhouse", schema);
-    List<RelOptRule> rules = new ArrayList<>();
-    rules.addAll(RelOptRules.BASE_RULES);
-    rules.addAll(ClickhouseRules.rules(schema.getConvention()));
-    RuleSet ruleSet = RuleSets.ofList(rules);
-
     final List<RelTraitDef> traitDefs = new ArrayList<RelTraitDef>();
     traitDefs.add(ConventionTraitDef.INSTANCE);
     traitDefs.add(RelCollationTraitDef.INSTANCE);
+    traitDefs.add(schema.getConvention().getTraitDef());
 
     FrameworkConfig frameworkConfig = Frameworks.newConfigBuilder()
         .parserConfig(SqlParser.config().withCaseSensitive(false))
         .defaultSchema(rootSchema.plus())
         .traitDefs(traitDefs)
-        .ruleSets(ruleSet)
         .typeSystem(RelDataTypeSystem.DEFAULT)
         .costFactory(RelOptCostImpl.FACTORY)
         .build();
@@ -71,6 +69,8 @@ public class Main {
     }
 
     parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", false);
+    parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 where t1.val = 'blub'"
+        , false);
     parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 " +
         "join clickhouse.t2 t2 on t1.id = t2.id where t2.val = 'bla'", false);
 
@@ -99,15 +99,8 @@ public class Main {
       System.out.println("Corresponding logical plan");
       relNode.explain(relWriter);
     }
-    RelTraitSet traits = RelTraitSet.createEmpty();
-    traits.plus(schema.getConvention());
     // Finally it's time to optimize our tree.
-    RelNode optimizedTree;
-    if (USE_HEP_PLANNER) {
-      optimizedTree = optimizeWithHepPlanner(relRoot.rel, schema.getConvention());
-    } else {
-      optimizedTree = planner.transform(0, traits, relRoot.rel);
-    }
+    RelNode optimizedTree = optimize(relRoot.rel, schema.getConvention());
     long after = System.nanoTime();
     if (!warmup) {
       System.out.println("Optimized tree");
@@ -117,14 +110,25 @@ public class Main {
     }
   }
 
-  private static RelNode optimizeWithHepPlanner(RelNode rootRel, ClickhouseConvention convention) {
-    final HepProgram hepProgram = new HepProgramBuilder()
-        .addRuleCollection(RelOptRules.BASE_RULES)
-        .addRuleCollection(ClickhouseRules.rules(convention))
-        .build();
-    final HepPlanner planner = new HepPlanner(hepProgram);
-    planner.setRoot(rootRel);
-    rootRel = planner.findBestExp();
-    return rootRel;
+  private static RelNode optimize(RelNode rootRel, ClickhouseConvention convention) {
+    if (USE_HEP_PLANNER) {
+      final HepProgram hepProgram = new HepProgramBuilder()
+          .addRuleCollection(RelOptRules.BASE_RULES)
+          .addRuleCollection(ClickhouseRules.rules(convention))
+          .build();
+      final HepPlanner planner = new HepPlanner(hepProgram);
+      planner.setRoot(rootRel);
+      return planner.findBestExp();
+    } else {
+      RelOptPlanner planner = rootRel.getCluster().getPlanner();
+      planner.setRoot(rootRel);
+      List<RelOptRule> rules = new ArrayList<>();
+      rules.addAll(ClickhouseRules.rules(convention));
+      Program prog = Programs.ofRules(rules);
+      RelTraitSet traits = planner.emptyTraitSet()
+          .replace(convention);
+      return prog.run(planner, rootRel, traits, emptyList(), emptyList());
+    }
+
   }
 }

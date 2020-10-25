@@ -18,13 +18,11 @@
 package org.apache.calcite.adapter.clickhouse.rel;
 
 import org.apache.calcite.linq4j.tree.Primitive;
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.plan.RelOptPlanner;
-import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.plan.*;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -49,6 +47,22 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
     super(cluster, cluster.traitSetOf(convention), ImmutableList.of(), table);
     this.convention = convention;
     this.fields = fields;
+    assert getConvention() instanceof ClickhouseConvention;
+  }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+    // Multiply the cost by a factor that makes a scan more attractive if it
+    // has significantly fewer fields than the original scan.
+    //
+    // The "+ 2D" on top and bottom keeps the function fairly smooth.
+    //
+    // For example, if table has 3 fields, project has 1 field,
+    // then factor = (1 + 2) / (3 + 2) = 0.6
+    RelOptCost cost = super.computeSelfCost(planner, mq)
+        .multiplyBy(((double) fields.length + 2D)
+            / ((double) table.getRowType().getFieldCount() + 2D));
+    return cost;
   }
 
   @Override
@@ -76,10 +90,5 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
     assert inputs.isEmpty();
     return super.copy(traitSet, inputs);
-  }
-
-  @Override
-  public void register(RelOptPlanner planner) {
-    ClickhouseRules.rules(convention).forEach((r) -> planner.addRule(r));
   }
 }

@@ -39,14 +39,14 @@ public class ClickhouseRules {
   public static Collection<RelOptRule> rules(ClickhouseConvention convention) {
     List<RelOptRule> rules = new ArrayList<>();
     rules.add(ClickhouseJoinConverterRule.create(convention));
-    rules.add(ClickhouseProjectConverterRule.create(convention));
     rules.add(ClickhouseFilterConverterRule.create(convention));
+    rules.add(ClickhouseProjectConverterRule.create(convention));
     rules.add(ClickhouseProjectRule.create());
     return rules;
   }
 
   /**
-   * Abstract base class for rule that converts to Clickhouse JDBC.
+   * Abstract base class for rule that converts to Clickhouse convention.
    */
   abstract static class ClickhouseConverterRule extends ConverterRule {
     protected ClickhouseConverterRule(Config config) {
@@ -78,11 +78,21 @@ public class ClickhouseRules {
     @Override
     public RelNode convert(RelNode rel) {
       final Join join = (Join) rel;
+      final List<RelNode> newInputs = new ArrayList<>();
+      for (RelNode input : join.getInputs()) {
+        if (input.getConvention() != getOutTrait()) {
+          input =
+              convert(input,
+                  input.getTraitSet().replace(out));
+        }
+        newInputs.add(input);
+      }
       switch (join.getJoinType()) {
       case SEMI:
       case ANTI:
       default:
-        return new ClickhouseJoin(join.getCluster(), join.getLeft(), join.getRight(),
+        return new ClickhouseJoin(join.getCluster(), rel.getTraitSet().replace(out),
+            newInputs.get(0), newInputs.get(1),
             join.getCondition(), join.getVariablesSet(), join.getJoinType());
       }
     }
@@ -110,7 +120,9 @@ public class ClickhouseRules {
     @Override
     public RelNode convert(RelNode rel) {
       final Project project = (Project) rel;
-      return new ClickhouseProject(project.getCluster(), project.getTraitSet(), project.getInput(),
+      return new ClickhouseProject(project.getCluster(),
+          project.getTraitSet().replace(out),
+          convert(project.getInput(), out),
           project.getProjects(), project.getRowType());
     }
   }
@@ -123,7 +135,8 @@ public class ClickhouseRules {
 
     public static ClickhouseFilterConverterRule create(ClickhouseConvention out) {
       return Config.INSTANCE
-          .withConversion(Filter.class, Convention.NONE, out, "ClickhouseFilterConverterRule")
+          .withConversion(Filter.class, Convention.NONE, out,
+              "ClickhouseFilterConverterRule")
           .withRuleFactory(ClickhouseFilterConverterRule::new)
           .toRule(ClickhouseFilterConverterRule.class);
     }
@@ -138,7 +151,9 @@ public class ClickhouseRules {
     @Override
     public RelNode convert(RelNode rel) {
       final Filter filter = (Filter) rel;
-      return new ClickhouseFilter(filter.getCluster(), filter.getTraitSet(), filter.getInput(),
+      return new ClickhouseFilter(filter.getCluster(),
+          filter.getTraitSet().replace(out),
+          convert(filter.getInput(), out),
           filter.getCondition());
     }
   }
