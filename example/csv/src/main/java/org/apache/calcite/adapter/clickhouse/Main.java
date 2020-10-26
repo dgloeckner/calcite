@@ -29,9 +29,13 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.externalize.RelWriterImpl;
+import org.apache.calcite.rel.rel2sql.RelToSqlConverter;
+import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
+import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.dialect.ClickHouseSqlDialect;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.tools.*;
 
@@ -64,20 +68,17 @@ public class Main {
         .build();
 
     // Warmup JIT to do some simple benchmarks later
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 0; i++) {
       parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", true);
     }
+    //parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", false);
+    parseAndOptimize(frameworkConfig, schema, "select s.id from clickhouse.t1 as s left join clickhouse.t2 as p on s.id = p.id", false);
+    //parseAndOptimize(frameworkConfig, schema, "select id from (SELECT * FROM clickhouse.t1 where t1.string1 = 'blub' and t1.int1 = 2) s where s.id = 'bla'", false);
+    //parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 where t1.id in (select id from clickhouse.t2)", false);
+    // parseAndOptimize(frameworkConfig, schema, "SELECT * FROM (select position_id clickhouse.t1 where t1.id in (select id from clickhouse.t2)", false);
 
-    parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", false);
-    parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 where t1.val = 'blub'"
-        , false);
-    parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 " +
-        "join clickhouse.t2 t2 on t1.id = t2.id where t2.val = 'bla'", false);
-
-    // FIXME: decide if we want to use the Calcite framework for executing the plan...
-//    PreparedStatement statement = RelRunners.run(relNode);
-//    ResultSet result = statement.executeQuery();
-//    System.out.println(result.next());
+    //parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 " +
+    //    "join clickhouse.t2 t2 on t1.id = t2.id where t2.val = 'bla'", false);
   }
 
   private static void parseAndOptimize(FrameworkConfig frameworkConfig,
@@ -106,23 +107,34 @@ public class Main {
       System.out.println("Optimized tree");
       optimizedTree.explain(relWriter);
       System.out.printf("The whole magic took %s seconds\n", (after - before) / 1000000000d);
+      System.out.println("As SQL " + toSql(optimizedTree));
       System.out.println("******");
     }
+  }
+
+  /** Converts a relational expression to SQL in a given dialect. */
+  private static String toSql(RelNode root) {
+    final RelToSqlConverter converter = new RelToSqlConverter(ClickHouseSqlDialect.DEFAULT);
+    final SqlNode sqlNode = converter.visitRoot(root).asStatement();
+    return sqlNode.toSqlString(ClickHouseSqlDialect.DEFAULT).getSql();
   }
 
   private static RelNode optimize(RelNode rootRel, ClickhouseConvention convention) {
     if (USE_HEP_PLANNER) {
       final HepProgram hepProgram = new HepProgramBuilder()
-          .addRuleCollection(RelOptRules.BASE_RULES)
           .addRuleCollection(ClickhouseRules.rules(convention))
           .build();
       final HepPlanner planner = new HepPlanner(hepProgram);
+      RelOptUtil.registerDefaultRules(planner, false, false);
       planner.setRoot(rootRel);
       return planner.findBestExp();
     } else {
       RelOptPlanner planner = rootRel.getCluster().getPlanner();
       planner.setRoot(rootRel);
       List<RelOptRule> rules = new ArrayList<>();
+      rules.add(CoreRules.PROJECT_JOIN_REMOVE);
+      rules.add(CoreRules.PROJECT_MERGE);
+      rules.add(CoreRules.PROJECT_JOIN_JOIN_REMOVE);
       rules.addAll(ClickhouseRules.rules(convention));
       Program prog = Programs.ofRules(rules);
       RelTraitSet traits = planner.emptyTraitSet()

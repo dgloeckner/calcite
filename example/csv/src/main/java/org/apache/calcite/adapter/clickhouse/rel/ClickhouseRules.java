@@ -23,6 +23,7 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelRule;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
+import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.Join;
 import org.apache.calcite.rel.core.Project;
@@ -36,12 +37,21 @@ import java.util.List;
 
 public class ClickhouseRules {
 
+  private static final ClickhouseProjectPushdownRule PROJECT_PUSHDOWN = RelRule.Config.EMPTY
+      .withOperandSupplier(b0 ->
+          b0.operand(LogicalProject.class).oneInput(b1 ->
+              b1.operand(ClickhouseTableScan.class).noInputs()))
+      .withDescription("Push project into table scan")
+      .as(ClickhouseProjectPushdownRule.Config.class)
+      .toRule();
+
   public static Collection<RelOptRule> rules(ClickhouseConvention convention) {
     List<RelOptRule> rules = new ArrayList<>();
     rules.add(ClickhouseJoinConverterRule.create(convention));
     rules.add(ClickhouseFilterConverterRule.create(convention));
     rules.add(ClickhouseProjectConverterRule.create(convention));
-    rules.add(ClickhouseProjectRule.create());
+    rules.add(ClickhouseAggregateConverterRule.create(convention));
+    rules.add(PROJECT_PUSHDOWN);
     return rules;
   }
 
@@ -158,10 +168,42 @@ public class ClickhouseRules {
     }
   }
 
-  // Pushes projected fields into tabla scan
-  public static class ClickhouseProjectRule extends RelRule<ClickhouseProjectRule.Config> {
+  /**
+   * Rule that converts a aggregate to clickhouse aggregate.
+   */
+  public static class ClickhouseAggregateConverterRule extends ClickhouseConverterRule {
 
-    public ClickhouseProjectRule(Config config) {
+    public static ClickhouseAggregateConverterRule create(ClickhouseConvention out) {
+      return Config.INSTANCE
+          .withConversion(Aggregate.class, Convention.NONE, out,
+              "ClickhouseAggregateConverterRule")
+          .withRuleFactory(ClickhouseAggregateConverterRule::new)
+          .toRule(ClickhouseAggregateConverterRule.class);
+    }
+
+    /**
+     * Called from the Config.
+     */
+    protected ClickhouseAggregateConverterRule(Config config) {
+      super(config);
+    }
+
+    @Override
+    public RelNode convert(RelNode rel) {
+      final Aggregate aggregate = (Aggregate) rel;
+      return new ClickhouseAggregate(aggregate.getCluster(),
+          aggregate.getTraitSet().replace(out),
+          convert(aggregate.getInput(), out),
+          aggregate.getGroupSet(),
+          aggregate.getGroupSets(),
+          aggregate.getAggCallList());
+    }
+  }
+
+  // Pushes projected fields into tabla scan
+  public static class ClickhouseProjectPushdownRule extends RelRule<ClickhouseProjectPushdownRule.Config> {
+
+    public ClickhouseProjectPushdownRule(Config config) {
       super(config);
     }
 
@@ -200,23 +242,70 @@ public class ClickhouseRules {
       return fields;
     }
 
-    public static ClickhouseProjectRule create() {
-      return Config.DEFAULT.toRule();
+    /**
+     * Rule configuration.
+     */
+    public interface Config extends RelRule.Config {
+
+      @Override
+      default ClickhouseProjectPushdownRule toRule() {
+        return new ClickhouseProjectPushdownRule(this);
+      }
+    }
+
+  }
+
+
+  // Pushes filter expression into table scan
+  public static class ClickhouseFilterPushdownRule extends RelRule<ClickhouseFilterPushdownRule.Config> {
+
+    public ClickhouseFilterPushdownRule(Config config) {
+      super(config);
+    }
+
+    @Override
+    public boolean matches(RelOptRuleCall call) {
+      return super.matches(call);
+    }
+
+    @Override
+    public void onMatch(RelOptRuleCall call) {
+      final LogicalProject project = call.rel(0);
+      final ClickhouseTableScan scan = call.rel(1);
+      int[] fields = getProjectFields(project.getProjects());
+      if (fields == null) {
+        // Project contains expressions more complex than just field references.
+        return;
+      }
+      call.transformTo(
+          new ClickhouseTableScan(
+              scan.getCluster(),
+              (ClickhouseConvention) scan.getConvention(),
+              scan.getTable(),
+              new int[]{1}));
+    }
+
+    private int[] getProjectFields(List<RexNode> exps) {
+      final int[] fields = new int[exps.size()];
+      for (int i = 0; i < exps.size(); i++) {
+        final RexNode exp = exps.get(i);
+        if (exp instanceof RexInputRef) {
+          fields[i] = ((RexInputRef) exp).getIndex();
+        } else {
+          return null; // not a simple projection
+        }
+      }
+      return fields;
     }
 
     /**
      * Rule configuration.
      */
     public interface Config extends RelRule.Config {
-      Config DEFAULT = EMPTY
-          .withOperandSupplier(b0 ->
-              b0.operand(LogicalProject.class).oneInput(b1 ->
-                  b1.operand(ClickhouseTableScan.class).noInputs()))
-          .as(Config.class);
 
       @Override
-      default ClickhouseProjectRule toRule() {
-        return new ClickhouseProjectRule(this);
+      default ClickhouseFilterPushdownRule toRule() {
+        return new ClickhouseFilterPushdownRule(this);
       }
     }
 

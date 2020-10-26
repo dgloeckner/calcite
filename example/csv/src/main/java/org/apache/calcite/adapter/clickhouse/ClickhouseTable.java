@@ -41,11 +41,16 @@ public class ClickhouseTable extends AbstractTable implements TranslatableTable 
   public RelDataType getRowType(RelDataTypeFactory typeFactory) {
     JavaTypeFactory jtf = (JavaTypeFactory) typeFactory;
     return jtf.createStructType(
-        Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR), jtf.createSqlType(SqlTypeName.CHAR)),
-        Arrays.asList("ID", "VAL"));
+        Arrays.asList(jtf.createSqlType(SqlTypeName.CHAR),
+            jtf.createSqlType(SqlTypeName.CHAR), jtf.createSqlType(SqlTypeName.CHAR),
+            jtf.createSqlType(SqlTypeName.CHAR), jtf.createSqlType(SqlTypeName.INTEGER),
+            jtf.createSqlType(SqlTypeName.INTEGER),
+            jtf.createSqlType(SqlTypeName.INTEGER)),
+        Arrays.asList("ID", "STRING1", "STRING2", "STRING3", "INT1", "INT2", "INT3"));
   }
 
-  @Override public RelNode toRel(
+  @Override
+  public RelNode toRel(
       RelOptTable.ToRelContext context,
       RelOptTable relOptTable) {
     return new ClickhouseTableScan(context.getCluster(), relOptTable, schema.getConvention());
