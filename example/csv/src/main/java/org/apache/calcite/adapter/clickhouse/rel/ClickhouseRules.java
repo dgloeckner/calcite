@@ -308,12 +308,12 @@ public class ClickhouseRules {
       super(config);
     }
 
-    @Override
-    public boolean matches(RelOptRuleCall call) {
-      Filter filter = call.rel(0);
-      ClickhousePivot pivot = findPivot(filter);
-      return pivot != null;
-    }
+//    @Override
+//    public boolean matches(RelOptRuleCall call) {
+////      Filter filter = call.rel(0);
+////      ClickhousePivot pivot = findPivot(filter);
+////      return pivot != null;
+//    }
 
     private ClickhousePivot findPivot(RelNode current) {
       List<RelNode> children = current.getInputs();
@@ -338,13 +338,12 @@ public class ClickhouseRules {
     @Override
     public void onMatch(RelOptRuleCall call) {
       final Filter filter = call.rel(0);
-      RelNode inputCopy = filter.getInput().copy(filter.getInput().getTraitSet(),
-          filter.getInput().getInputs());
-      ClickhousePivot pivot = findPivot(inputCopy);
+      ClickhousePivot pivot = call.rel(1);
+      ClickhousePivot newPivot = (ClickhousePivot) pivot.copy(pivot.getTraitSet(), pivot.getInputs());
       ClickhouseMaterialize materialize = new ClickhouseMaterialize(filter.getCluster(),
           pivot.getTraitSet());
-      pivot.addInput(materialize);
-      call.transformTo(inputCopy);
+      newPivot.addInput(materialize);
+      call.transformTo(newPivot);
     }
 
     /**

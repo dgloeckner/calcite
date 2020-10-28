@@ -106,7 +106,7 @@ public class ClickhousePivot extends TableScan implements ClickhouseRel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    return super.copy(traitSet, inputs);
+    return new ClickhousePivot(getCluster(), getTable(), convention, clickhouseTable);
   }
 
   @Override public void register(RelOptPlanner planner) {
