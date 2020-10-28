@@ -15,28 +15,29 @@
  * limitations under the License.
  */
 
-package org.apache.calcite.adapter.clickhouse;
+package org.apache.calcite.adapter.clickhouse.rel;
 
-import org.apache.calcite.adapter.clickhouse.rel.ClickhouseConvention;
-import org.apache.calcite.schema.Table;
-import org.apache.calcite.schema.impl.AbstractSchema;
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.AbstractRelNode;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 
-import java.util.HashMap;
-import java.util.Map;
+public class ClickhouseMaterialize extends AbstractRelNode {
 
-public class ClickhouseSchema  extends AbstractSchema {
-
-  private final ClickhouseConvention convention = new ClickhouseConvention();
-
-  @Override
-  protected Map<String, Table> getTableMap() {
-    Map<String, Table> tables = new HashMap<>();
-    tables.put("T1", new ClickhouseTable(this, "T1"));
-    tables.put("T2", new ClickhouseTable(this, "T2"));
-    return tables;
+  /**
+   * Creates an <code>AbstractRelNode</code>.
+   *
+   * @param cluster
+   * @param traitSet
+   */
+  protected ClickhouseMaterialize(RelOptCluster cluster, RelTraitSet traitSet) {
+    super(cluster, traitSet);
   }
 
-  public ClickhouseConvention getConvention() {
-    return convention;
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+    return planner.getCostFactory().makeTinyCost();
   }
 }

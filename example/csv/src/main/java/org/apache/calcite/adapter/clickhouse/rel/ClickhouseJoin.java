@@ -29,7 +29,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.Set;
 
-// TODO: push down fields past join
+// TODO: inclear how to implement enumerable joins... are they even needed for now?
 public class ClickhouseJoin extends Join implements ClickhouseRel {
 
   public ClickhouseJoin(RelOptCluster cluster, RelTraitSet traitSet,
@@ -46,5 +46,11 @@ public class ClickhouseJoin extends Join implements ClickhouseRel {
       RelNode right, JoinRelType joinType, boolean semiJoinDone) {
     return new ClickhouseJoin(getCluster(), getTraitSet(), left, right, conditionExpr,
         variablesSet, joinType);
+  }
+
+  @Override
+  public void implement(Implementor implementor) {
+    implementor.visitChild(getLeft());
+    implementor.visitChild(getRight());
   }
 }

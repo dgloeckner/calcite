@@ -18,9 +18,12 @@
 package org.apache.calcite.adapter.clickhouse.rel;
 
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 
 public class ClickhouseFilter extends Filter implements ClickhouseRel {
@@ -35,6 +38,17 @@ public class ClickhouseFilter extends Filter implements ClickhouseRel {
   @Override
   public ClickhouseFilter copy(RelTraitSet traitSet, RelNode input, RexNode condition) {
     return new ClickhouseFilter(getCluster(), traitSet, input, condition);
+  }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+    return planner.getCostFactory().makeTinyCost();
+  }
+
+  @Override
+  public void implement(Implementor implementor) {
+    // Add fields and predicates... implementor.add();
+    implementor.visitChild(getInput());
   }
 
 }

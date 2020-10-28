@@ -30,9 +30,10 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 
 import com.google.common.collect.ImmutableList;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
+public class ClickhousePivot extends TableScan implements ClickhouseRel {
 
   private final ClickhouseConvention convention;
 
@@ -40,13 +41,15 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
 
   final int[] fields;
 
-  public ClickhouseTableScan(RelOptCluster cluster, RelOptTable table,
-      ClickhouseConvention convention, ClickhouseTable clickhouseTable) {
+  private List<RelNode> inputs = new ArrayList<>();
+
+  public ClickhousePivot(RelOptCluster cluster, RelOptTable table,
+                         ClickhouseConvention convention, ClickhouseTable clickhouseTable) {
     this(cluster, convention, table, clickhouseTable, new int[0]);
   }
 
-  public ClickhouseTableScan(RelOptCluster cluster, ClickhouseConvention convention,
-      RelOptTable table, ClickhouseTable clickhouseTable, int[] fields) {
+  public ClickhousePivot(RelOptCluster cluster, ClickhouseConvention convention,
+                         RelOptTable table, ClickhouseTable clickhouseTable, int[] fields) {
     super(cluster, cluster.traitSetOf(convention), ImmutableList.of(), table);
     this.convention = convention;
     this.clickhouseTable = clickhouseTable;
@@ -60,6 +63,13 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+    int length = fields.length > 0 ? fields.length : getRowType().getFieldCount();
+    RelOptCost origCosts;
+    if(inputs.isEmpty()) {
+      origCosts = planner.getCostFactory().makeCost(200000d, 1, 1);
+    } else {
+      origCosts = planner.getCostFactory().makeCost(2000d, 1, 1);
+    }
     // Multiply the cost by a factor that makes a scan more attractive if it
     // has significantly fewer fields than the original scan.
     //
@@ -67,12 +77,11 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
     //
     // For example, if table has 3 fields, project has 1 field,
     // then factor = (1 + 2) / (3 + 2) = 0.6
-    int length = fields.length > 0 ? fields.length : getRowType().getFieldCount();
-    RelOptCost cost = super.computeSelfCost(planner, mq)
-        .multiplyBy(((double) length + 2D)
-            / ((double) table.getRowType().getFieldCount() + 2D));
-    return cost;
+    return origCosts.multiplyBy(((double) length + 2D)
+        / ((double) table.getRowType().getFieldCount() + 2D));
   }
+
+
 
   @Override
   public RelWriter explainTerms(RelWriter pw) {
@@ -97,7 +106,6 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
 
   @Override
   public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-    assert inputs.isEmpty();
     return super.copy(traitSet, inputs);
   }
 
@@ -111,5 +119,14 @@ public class ClickhouseTableScan extends TableScan implements ClickhouseRel {
   public void implement(Implementor implementor) {
     implementor.relOptTable = table;
     implementor.clickhouseTable = clickhouseTable;
+  }
+
+  public void addInput(ClickhouseMaterialize materialize) {
+    inputs.add(materialize);
+  }
+
+  @Override
+  public List<RelNode> getInputs() {
+    return inputs;
   }
 }

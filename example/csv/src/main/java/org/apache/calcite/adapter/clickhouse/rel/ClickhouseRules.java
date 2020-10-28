@@ -17,10 +17,10 @@
 
 package org.apache.calcite.adapter.clickhouse.rel;
 
-import org.apache.calcite.plan.Convention;
-import org.apache.calcite.plan.RelOptRule;
-import org.apache.calcite.plan.RelOptRuleCall;
-import org.apache.calcite.plan.RelRule;
+import org.apache.calcite.adapter.enumerable.EnumerableConvention;
+import org.apache.calcite.adapter.enumerable.EnumerableFilter;
+import org.apache.calcite.plan.*;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.core.Aggregate;
@@ -39,18 +39,29 @@ public class ClickhouseRules {
 
   private static final ClickhouseProjectPushdownRule PROJECT_PUSHDOWN = RelRule.Config.EMPTY
       .withOperandSupplier(b0 ->
-          b0.operand(LogicalProject.class).oneInput(b1 ->
-              b1.operand(ClickhouseTableScan.class).noInputs()))
+          b0.operand(Project.class).oneInput(b1 ->
+              b1.operand(ClickhousePivot.class).noInputs()))
       .withDescription("Push project into table scan")
       .as(ClickhouseProjectPushdownRule.Config.class)
       .toRule();
 
+  public static final ClickhouseVerticalFilterPushDownRule VERTICAL_FILTER_PUSH_DOWN_RULE =
+      RelRule.Config.EMPTY
+      .withOperandSupplier(b0 ->
+          b0.operand(ClickhouseFilter.class).oneInput(b1 ->
+              b1.operand(ClickhousePivot.class).noInputs()))
+      .withDescription("Push vertical filter past pivot")
+      .as(ClickhouseVerticalFilterPushDownRule.Config.class)
+      .toRule();
+
   public static Collection<RelOptRule> rules(ClickhouseConvention convention) {
     List<RelOptRule> rules = new ArrayList<>();
-    rules.add(ClickhouseJoinConverterRule.create(convention));
+    //rules.add(ClickhouseJoinConverterRule.create(convention));
     rules.add(ClickhouseFilterConverterRule.create(convention));
     rules.add(ClickhouseProjectConverterRule.create(convention));
     rules.add(ClickhouseAggregateConverterRule.create(convention));
+    rules.add(ClickhouseToEnumerableConverterRule.create(convention));
+    rules.add(VERTICAL_FILTER_PUSH_DOWN_RULE);
     rules.add(PROJECT_PUSHDOWN);
     return rules;
   }
@@ -61,6 +72,30 @@ public class ClickhouseRules {
   abstract static class ClickhouseConverterRule extends ConverterRule {
     protected ClickhouseConverterRule(Config config) {
       super(config);
+    }
+  }
+
+  public static class ClickhouseToEnumerableConverterRule extends ClickhouseAggregateConverterRule {
+
+    /**
+     * Creates a ClickhouseToEnumerableConverterRule.
+     */
+    public static ClickhouseToEnumerableConverterRule create(ClickhouseConvention in) {
+      return Config.INSTANCE
+          .withConversion(RelNode.class, in, EnumerableConvention.INSTANCE,
+              "ClickhouseToEnumerableConverterRule")
+          .withRuleFactory(ClickhouseToEnumerableConverterRule::new)
+          .toRule(ClickhouseToEnumerableConverterRule.class);
+    }
+
+    protected ClickhouseToEnumerableConverterRule(Config config) {
+      super(config);
+    }
+
+    @Override
+    public RelNode convert(RelNode rel) {
+      RelTraitSet newTraitSet = rel.getTraitSet().replace(getOutConvention());
+      return new ClickhouseToEnumerableConverter(rel.getCluster(), newTraitSet, rel);
     }
   }
 
@@ -134,6 +169,17 @@ public class ClickhouseRules {
           project.getTraitSet().replace(out),
           convert(project.getInput(), out),
           project.getProjects(), project.getRowType());
+    }
+
+    @Override
+    public boolean matches(RelOptRuleCall call) {
+      LogicalProject project = call.rel(0);
+      for (RexNode e : project.getProjects()) {
+        if (!(e instanceof RexInputRef)) {
+          return false;
+        }
+      }
+      return super.matches(call);
     }
   }
 
@@ -214,19 +260,19 @@ public class ClickhouseRules {
 
     @Override
     public void onMatch(RelOptRuleCall call) {
-      final LogicalProject project = call.rel(0);
-      final ClickhouseTableScan scan = call.rel(1);
+      final Project project = call.rel(0);
+      final ClickhousePivot scan = call.rel(1);
       int[] fields = getProjectFields(project.getProjects());
       if (fields == null) {
         // Project contains expressions more complex than just field references.
         return;
       }
       call.transformTo(
-          new ClickhouseTableScan(
+          new ClickhousePivot(
               scan.getCluster(),
               (ClickhouseConvention) scan.getConvention(),
               scan.getTable(),
-              new int[]{1}));
+              scan.getClickhouseTable(), fields));
     }
 
     private int[] getProjectFields(List<RexNode> exps) {
@@ -255,47 +301,50 @@ public class ClickhouseRules {
 
   }
 
+  // Pushes a vertical filter expression below the pivot element
+  public static class ClickhouseVerticalFilterPushDownRule extends RelRule<ClickhouseVerticalFilterPushDownRule.Config> {
 
-  // Pushes filter expression into table scan
-  public static class ClickhouseFilterPushdownRule extends RelRule<ClickhouseFilterPushdownRule.Config> {
-
-    public ClickhouseFilterPushdownRule(Config config) {
+    public ClickhouseVerticalFilterPushDownRule(Config config) {
       super(config);
     }
 
     @Override
     public boolean matches(RelOptRuleCall call) {
-      return super.matches(call);
+      Filter filter = call.rel(0);
+      ClickhousePivot pivot = findPivot(filter);
+      return pivot != null;
+    }
+
+    private ClickhousePivot findPivot(RelNode current) {
+      List<RelNode> children = current.getInputs();
+      for (RelNode child : children) {
+        if (child instanceof ClickhousePivot) {
+          return (ClickhousePivot) child;
+        }
+        if (child instanceof Join) {
+          // Cannot push past joins etc.
+          return null;
+        }
+      }
+      for (RelNode child : children) {
+        ClickhousePivot found = findPivot(child);
+        if (found != null) {
+          return found;
+        }
+      }
+      return null;
     }
 
     @Override
     public void onMatch(RelOptRuleCall call) {
-      final LogicalProject project = call.rel(0);
-      final ClickhouseTableScan scan = call.rel(1);
-      int[] fields = getProjectFields(project.getProjects());
-      if (fields == null) {
-        // Project contains expressions more complex than just field references.
-        return;
-      }
-      call.transformTo(
-          new ClickhouseTableScan(
-              scan.getCluster(),
-              (ClickhouseConvention) scan.getConvention(),
-              scan.getTable(),
-              new int[]{1}));
-    }
-
-    private int[] getProjectFields(List<RexNode> exps) {
-      final int[] fields = new int[exps.size()];
-      for (int i = 0; i < exps.size(); i++) {
-        final RexNode exp = exps.get(i);
-        if (exp instanceof RexInputRef) {
-          fields[i] = ((RexInputRef) exp).getIndex();
-        } else {
-          return null; // not a simple projection
-        }
-      }
-      return fields;
+      final Filter filter = call.rel(0);
+      RelNode inputCopy = filter.getInput().copy(filter.getInput().getTraitSet(),
+          filter.getInput().getInputs());
+      ClickhousePivot pivot = findPivot(inputCopy);
+      ClickhouseMaterialize materialize = new ClickhouseMaterialize(filter.getCluster(),
+          pivot.getTraitSet());
+      pivot.addInput(materialize);
+      call.transformTo(inputCopy);
     }
 
     /**
@@ -304,8 +353,8 @@ public class ClickhouseRules {
     public interface Config extends RelRule.Config {
 
       @Override
-      default ClickhouseFilterPushdownRule toRule() {
-        return new ClickhouseFilterPushdownRule(this);
+      default ClickhouseVerticalFilterPushDownRule toRule() {
+        return new ClickhouseVerticalFilterPushDownRule(this);
       }
     }
 

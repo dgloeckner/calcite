@@ -17,26 +17,25 @@
 
 package org.apache.calcite.adapter.clickhouse;
 
-import org.apache.calcite.adapter.clickhouse.rel.ClickhouseConvention;
-import org.apache.calcite.schema.Table;
-import org.apache.calcite.schema.impl.AbstractSchema;
+import org.apache.calcite.adapter.clickhouse.rel.ClickhouseFilter;
+import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.metadata.BuiltInMetadata;
+import org.apache.calcite.rel.metadata.MetadataDef;
+import org.apache.calcite.rel.metadata.MetadataHandler;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.apache.calcite.rex.RexNode;
 
-import java.util.HashMap;
-import java.util.Map;
-
-public class ClickhouseSchema  extends AbstractSchema {
-
-  private final ClickhouseConvention convention = new ClickhouseConvention();
+public class ClickhouseMdQuatsch  implements MetadataHandler<BuiltInMetadata.Selectivity> {
 
   @Override
-  protected Map<String, Table> getTableMap() {
-    Map<String, Table> tables = new HashMap<>();
-    tables.put("T1", new ClickhouseTable(this, "T1"));
-    tables.put("T2", new ClickhouseTable(this, "T2"));
-    return tables;
+  public MetadataDef<BuiltInMetadata.Selectivity> getDef() {
+    System.out.println("Get DEF schnitzel");
+    return BuiltInMetadata.Selectivity.DEF;
   }
 
-  public ClickhouseConvention getConvention() {
-    return convention;
+  public Double getSelectivity(ClickhouseFilter rel, RelMetadataQuery mq,
+      RexNode predicate) {
+    System.out.println("get selectivity");
+    return 12345d;
   }
 }

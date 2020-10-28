@@ -40,6 +40,8 @@ import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.tools.*;
 
 import java.io.PrintWriter;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -71,11 +73,15 @@ public class Main {
     for (int i = 0; i < 0; i++) {
       parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", true);
     }
-    //parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1", false);
-    parseAndOptimize(frameworkConfig, schema, "select s.id from clickhouse.t1 as s left join clickhouse.t2 as p on s.id = p.id", false);
-    //parseAndOptimize(frameworkConfig, schema, "select id from (SELECT * FROM clickhouse.t1 where t1.string1 = 'blub' and t1.int1 = 2) s where s.id = 'bla'", false);
-    //parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 where t1.id in (select id from clickhouse.t2)", false);
-    // parseAndOptimize(frameworkConfig, schema, "SELECT * FROM (select position_id clickhouse.t1 where t1.id in (select id from clickhouse.t2)", false);
+    parseAndOptimize(frameworkConfig, schema, "SELECT id FROM clickhouse.t1 where t1.string1 = 'bla'", false);
+    //parseAndOptimize(frameworkConfig, schema, "select s.id from clickhouse.t1 as s left join " +
+    //    "clickhouse.t2 as p on s.id = p.id", false);
+    //parseAndOptimize(frameworkConfig, schema, "select id from (SELECT * FROM clickhouse.t1
+    // where t1.string1 = 'blub' and t1.int1 = 2) s where s.id = 'bla'", false);
+    //parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 where t1.id in
+    // (select id from clickhouse.t2)", false);
+    // parseAndOptimize(frameworkConfig, schema, "SELECT * FROM (select position_id clickhouse.t1
+    // where t1.id in (select id from clickhouse.t2)", false);
 
     //parseAndOptimize(frameworkConfig, schema, "SELECT * FROM clickhouse.t1 " +
     //    "join clickhouse.t2 t2 on t1.id = t2.id where t2.val = 'bla'", false);
@@ -102,6 +108,10 @@ public class Main {
     }
     // Finally it's time to optimize our tree.
     RelNode optimizedTree = optimize(relRoot.rel, schema.getConvention());
+    // FIXME: decide if we want to use the Calcite framework for executing the plan...
+    //PreparedStatement statement = RelRunners.run(relNode);
+    //ResultSet result = statement.executeQuery();
+    //System.out.println(result.next());
     long after = System.nanoTime();
     if (!warmup) {
       System.out.println("Optimized tree");
@@ -112,7 +122,9 @@ public class Main {
     }
   }
 
-  /** Converts a relational expression to SQL in a given dialect. */
+  /**
+   * Converts a relational expression to SQL in a given dialect.
+   */
   private static String toSql(RelNode root) {
     final RelToSqlConverter converter = new RelToSqlConverter(ClickHouseSqlDialect.DEFAULT);
     final SqlNode sqlNode = converter.visitRoot(root).asStatement();

@@ -17,26 +17,17 @@
 
 package org.apache.calcite.adapter.clickhouse;
 
-import org.apache.calcite.adapter.clickhouse.rel.ClickhouseConvention;
-import org.apache.calcite.schema.Table;
-import org.apache.calcite.schema.impl.AbstractSchema;
+import org.apache.calcite.adapter.clickhouse.ClickhouseSchema;
+import org.apache.calcite.schema.Schema;
+import org.apache.calcite.schema.SchemaFactory;
+import org.apache.calcite.schema.SchemaPlus;
 
-import java.util.HashMap;
 import java.util.Map;
 
-public class ClickhouseSchema  extends AbstractSchema {
-
-  private final ClickhouseConvention convention = new ClickhouseConvention();
+public class ClickhouseSchemaFactory implements SchemaFactory {
 
   @Override
-  protected Map<String, Table> getTableMap() {
-    Map<String, Table> tables = new HashMap<>();
-    tables.put("T1", new ClickhouseTable(this, "T1"));
-    tables.put("T2", new ClickhouseTable(this, "T2"));
-    return tables;
-  }
-
-  public ClickhouseConvention getConvention() {
-    return convention;
+  public Schema create(SchemaPlus parentSchema, String name, Map<String, Object> operand) {
+    return new ClickhouseSchema();
   }
 }

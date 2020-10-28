@@ -43,4 +43,9 @@ public class ClickhouseProject extends Project implements ClickhouseRel {
     return new ClickhouseProject(getCluster(), traitSet,
         input, projects, rowType);
   }
+
+  @Override
+  public void implement(Implementor implementor) {
+    implementor.visitChild(getInput());
+  }
 }

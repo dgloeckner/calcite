@@ -17,8 +17,41 @@
 
 package org.apache.calcite.adapter.clickhouse.rel;
 
+import org.apache.calcite.adapter.clickhouse.ClickhouseTable;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public interface ClickhouseRel extends RelNode {
   // We can add implement() here...
+
+  void implement(Implementor implementor);
+
+  class Implementor {
+    RelOptTable relOptTable;
+    ClickhouseTable clickhouseTable;
+    ClickhouseJoin clickhouseJoin;
+
+    final Map<String, String> selectFields = new LinkedHashMap<>();
+    final List<String> whereClause = new ArrayList<>();
+    int offset = 0;
+    int fetch = -1;
+    final List<String> order = new ArrayList<>();
+
+    public void visitChild(RelNode input) {
+      ((ClickhouseRel) input).implement(this);
+    }
+
+    public void addFields(Map<String, String> fields) {
+      selectFields.putAll(fields);
+    }
+
+    public void addPredicates(List<String> predicates) {
+      whereClause.addAll(predicates);
+    }
+  }
 }

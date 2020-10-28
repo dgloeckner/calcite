@@ -42,4 +42,9 @@ public class ClickhouseAggregate extends Aggregate implements ClickhouseRel {
       List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
     return new ClickhouseAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls);
   }
+
+  @Override
+  public void implement(Implementor implementor) {
+    implementor.visitChild(getInput());
+  }
 }
